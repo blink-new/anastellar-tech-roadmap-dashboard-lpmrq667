@@ -8,6 +8,7 @@ export const RoadmapService = {
   async fetchTasksByMonth(): Promise<Month[]> {
     try {
       console.log('Fetching tasks from Supabase...')
+      console.log('Supabase URL:', supabase.supabaseUrl)
       
       const { data: tasks, error } = await supabase
         .from('tasks')
@@ -20,6 +21,7 @@ export const RoadmapService = {
       }
       
       console.log('Tasks fetched:', tasks?.length || 0)
+      console.log('Sample task:', tasks?.[0])
       
       if (!tasks || tasks.length === 0) {
         console.log('No tasks found in database')
@@ -29,6 +31,7 @@ export const RoadmapService = {
       // Organize by month
       const months = organizeTasksByMonth(tasks)
       console.log('Organized into months:', months.length)
+      console.log('Month titles:', months.map(m => m.title))
       
       return months
     } catch (error) {

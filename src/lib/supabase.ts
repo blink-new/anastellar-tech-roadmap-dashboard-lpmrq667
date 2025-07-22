@@ -5,6 +5,9 @@ const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYm
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
+// Add a property to expose the URL for debugging
+;(supabase as any).supabaseUrl = supabaseUrl
+
 // TypeScript interfaces for our data
 export interface Task {
   id: string
