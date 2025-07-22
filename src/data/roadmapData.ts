@@ -39,7 +39,7 @@ const rawRoadmapData: Month[] = [
     theme: 'System Reliability & Foundation - Making sure everything works perfectly',
     isExpanded: false,
     tasks: [
-      // REVIEW TASKS - Priority items to be completed first (Due dates: July 24-August 2, 2025)
+      // REVIEW TASKS - Priority items to be completed first (Due dates: July 24-31, 2025)
       {
         id: 'july-10',
         title: 'Review Clock In and Out Flow and Tick Off',
@@ -127,7 +127,16 @@ const rawRoadmapData: Month[] = [
         status: 'in-progress',
         estimatedDate: 'July 31, 2025',
         userTypes: ['Promoters', 'Admin']
-      },
+      }
+    ]
+  },
+  {
+    id: 'august-2025',
+    title: 'AUGUST 2025',
+    theme: 'Reports & Sales Rep Tools - Better information and tools for decision-making',
+    isExpanded: false,
+    tasks: [
+      // TASKS MOVED FROM JULY (August 1-14)
       {
         id: 'july-18',
         title: 'Review Job Shadow Flow end-to-end and Tick Off',
@@ -150,8 +159,6 @@ const rawRoadmapData: Month[] = [
         estimatedDate: 'August 2, 2025',
         userTypes: ['Promoters', 'Admin']
       },
-      
-      // DEVELOPMENT TASKS - New features and improvements
       {
         id: 'july-4',
         title: 'Show Better Shift Options to Promoters',
@@ -280,15 +287,8 @@ const rawRoadmapData: Month[] = [
           'Analyze integration requirements with current systems',
           'Define scalability requirements for external client base'
         ]
-      }
-    ]
-  },
-  {
-    id: 'august-2025',
-    title: 'AUGUST 2025',
-    theme: 'Reports & Sales Rep Tools - Better information and tools for decision-making',
-    isExpanded: false,
-    tasks: [
+      },
+      // ORIGINAL AUGUST TASKS (August 15-20)
       {
         id: 'august-1',
         title: 'Backlog from July',
