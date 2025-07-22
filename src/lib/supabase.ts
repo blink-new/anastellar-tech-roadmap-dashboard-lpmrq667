@@ -11,12 +11,12 @@ export interface Task {
   title: string
   description: string
   value: string
-  who_uses_it: string
+  whoUsesIt: string
   examples?: string[]
   priority: 'high' | 'medium' | 'low'
   status: 'not_started' | 'in_progress' | 'complete'
-  estimated_date: string
-  user_type: string
+  estimatedDate: string
+  userType: string
   created_at?: string
   updated_at?: string
 }
@@ -29,36 +29,8 @@ export interface Month {
   isExpanded?: boolean
 }
 
-// Helper function to convert snake_case to camelCase
-export function toCamelCase(obj: any): any {
-  if (Array.isArray(obj)) {
-    return obj.map(v => toCamelCase(v))
-  } else if (obj !== null && obj.constructor === Object) {
-    return Object.keys(obj).reduce((result, key) => {
-      const camelKey = key.replace(/_([a-z])/g, (g) => g[1].toUpperCase())
-      result[camelKey] = toCamelCase(obj[key])
-      return result
-    }, {} as any)
-  }
-  return obj
-}
-
-// Helper function to convert camelCase to snake_case
-export function toSnakeCase(obj: any): any {
-  if (Array.isArray(obj)) {
-    return obj.map(v => toSnakeCase(v))
-  } else if (obj !== null && obj.constructor === Object) {
-    return Object.keys(obj).reduce((result, key) => {
-      const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`)
-      result[snakeKey] = toSnakeCase(obj[key])
-      return result
-    }, {} as any)
-  }
-  return obj
-}
-
 // Function to organize tasks by month
-export function organizeTasksByMonth(tasks: Task[]): Month[] {
+export function organizeTasksByMonth(dbTasks: any[]): Month[] {
   const monthMap = new Map<string, Month>()
   
   // Define month metadata
@@ -71,8 +43,26 @@ export function organizeTasksByMonth(tasks: Task[]): Month[] {
     'December 2025': { id: 'december-2025', theme: 'Platform Optimization & 2026 Preparation - Final optimizations and preparation for the new year' },
   }
   
-  tasks.forEach(task => {
-    const date = new Date(task.estimated_date)
+  dbTasks.forEach(dbTask => {
+    // Convert snake_case to camelCase
+    const task: Task = {
+      id: dbTask.id,
+      title: dbTask.title,
+      description: dbTask.description,
+      value: dbTask.value,
+      whoUsesIt: dbTask.who_uses,
+      examples: dbTask.examples && typeof dbTask.examples === 'string' 
+        ? JSON.parse(dbTask.examples) 
+        : dbTask.examples || [],
+      priority: dbTask.priority,
+      status: dbTask.status,
+      estimatedDate: dbTask.estimated_date,
+      userType: dbTask.who_uses,
+      created_at: dbTask.created_at,
+      updated_at: dbTask.updated_at
+    }
+    
+    const date = new Date(task.estimatedDate)
     const monthYear = `${date.toLocaleString('en-US', { month: 'long' })} ${date.getFullYear()}`
     
     if (!monthMap.has(monthYear)) {
@@ -96,14 +86,14 @@ export function organizeTasksByMonth(tasks: Task[]): Month[] {
   
   // Sort tasks within each month by date
   monthMap.forEach(month => {
-    month.tasks.sort((a, b) => new Date(a.estimated_date).getTime() - new Date(b.estimated_date).getTime())
+    month.tasks.sort((a, b) => new Date(a.estimatedDate).getTime() - new Date(b.estimatedDate).getTime())
   })
   
   // Convert to array and sort by month
   const months = Array.from(monthMap.values())
   months.sort((a, b) => {
-    const dateA = new Date(a.tasks[0]?.estimated_date || '2025-01-01')
-    const dateB = new Date(b.tasks[0]?.estimated_date || '2025-01-01')
+    const dateA = new Date(a.tasks[0]?.estimatedDate || '2025-01-01')
+    const dateB = new Date(b.tasks[0]?.estimatedDate || '2025-01-01')
     return dateA.getTime() - dateB.getTime()
   })
   

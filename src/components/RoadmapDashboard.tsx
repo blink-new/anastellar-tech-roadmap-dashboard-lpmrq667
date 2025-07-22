@@ -28,7 +28,7 @@ import { Badge } from './ui/badge';
 import { Progress } from './ui/progress';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
 import { toast } from 'sonner';
-import { Task, Month } from '../lib/supabase';
+import type { Task, Month } from '../lib/supabase';
 import { RoadmapService } from '../services/roadmapService';
 
 type FilterType = 'All' | 'Promoters' | 'Sales Reps' | 'Admin';
