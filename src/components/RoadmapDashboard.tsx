@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { 
   Search, 
   Filter, 
@@ -16,7 +16,10 @@ import {
   Sun,
   AlertCircle,
   CheckCircle2,
-  Clock
+  Clock,
+  Edit2,
+  Save,
+  X
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -24,25 +27,58 @@ import { Input } from './ui/input';
 import { Badge } from './ui/badge';
 import { Progress } from './ui/progress';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
-import { roadmapData, Task, Month } from '../data/roadmapData';
+import { toast } from 'sonner';
+import { Task, Month } from '../lib/supabase';
+import { RoadmapService } from '../services/roadmapService';
 
 type FilterType = 'All' | 'Promoters' | 'Sales Reps' | 'Admin';
 
 export default function RoadmapDashboard() {
-  const [months, setMonths] = useState<Month[]>(roadmapData);
+  const [months, setMonths] = useState<Month[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterType>('All');
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [editDate, setEditDate] = useState('');
+
+  const loadTasks = async () => {
+    try {
+      setLoading(true);
+      const data = await RoadmapService.fetchTasksByMonth();
+      setMonths(data);
+    } catch (error) {
+      console.error('Error loading tasks:', error);
+      toast.error('Failed to load tasks');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load tasks from Supabase
+  useEffect(() => {
+    loadTasks();
+    
+    // Subscribe to real-time changes
+    const subscription = RoadmapService.subscribeToChanges((payload) => {
+      console.log('Change received:', payload);
+      loadTasks(); // Reload tasks when changes occur
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
 
   // Calculate overall progress
   const totalTasks = months.reduce((acc, month) => acc + month.tasks.length, 0);
   const completedTasks = months.reduce((acc, month) => 
-    acc + month.tasks.filter(task => task.status === 'completed').length, 0
+    acc + month.tasks.filter(task => task.status === 'complete').length, 0
   );
   const inProgressTasks = months.reduce((acc, month) => 
-    acc + month.tasks.filter(task => task.status === 'in-progress').length, 0
+    acc + month.tasks.filter(task => task.status === 'in_progress').length, 0
   );
-  const progressPercentage = Math.round((completedTasks / totalTasks) * 100);
+  const progressPercentage = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
   // Filter tasks based on search and filter
   const filteredMonths = useMemo(() => {
@@ -68,26 +104,49 @@ export default function RoadmapDashboard() {
     ));
   };
 
-  const toggleTaskBookmark = (taskId: string) => {
-    setMonths(prev => prev.map(month => ({
-      ...month,
-      tasks: month.tasks.map(task => 
-        task.id === taskId 
-          ? { ...task, isBookmarked: !task.isBookmarked }
-          : task
-      )
-    })));
+  const updateTaskStatus = async (taskId: string, newStatus: Task['status']) => {
+    try {
+      await RoadmapService.updateTaskStatus(taskId, newStatus);
+      toast.success('Task status updated');
+      await loadTasks(); // Reload to reflect changes
+    } catch (error) {
+      console.error('Error updating task status:', error);
+      toast.error('Failed to update task status');
+    }
   };
 
-  const updateTaskStatus = (taskId: string, newStatus: Task['status']) => {
-    setMonths(prev => prev.map(month => ({
-      ...month,
-      tasks: month.tasks.map(task => 
-        task.id === taskId 
-          ? { ...task, status: newStatus }
-          : task
-      )
-    })));
+  const updateTaskPriority = async (taskId: string, newPriority: Task['priority']) => {
+    try {
+      await RoadmapService.updateTaskPriority(taskId, newPriority);
+      toast.success('Task priority updated');
+      await loadTasks(); // Reload to reflect changes
+    } catch (error) {
+      console.error('Error updating task priority:', error);
+      toast.error('Failed to update task priority');
+    }
+  };
+
+  const startEditingDate = (taskId: string, currentDate: string) => {
+    setEditingTaskId(taskId);
+    setEditDate(currentDate);
+  };
+
+  const cancelEditingDate = () => {
+    setEditingTaskId(null);
+    setEditDate('');
+  };
+
+  const saveTaskDate = async (taskId: string) => {
+    try {
+      await RoadmapService.updateTaskDate(taskId, editDate);
+      toast.success('Task date updated - task will move to appropriate month');
+      setEditingTaskId(null);
+      setEditDate('');
+      await loadTasks(); // Reload to reflect changes
+    } catch (error) {
+      console.error('Error updating task date:', error);
+      toast.error('Failed to update task date');
+    }
   };
 
   const getUserTypeIcon = (userType: string) => {
@@ -101,21 +160,32 @@ export default function RoadmapDashboard() {
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case 'High': return 'bg-red-100 text-red-800 border-red-200';
-      case 'Medium': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'Low': return 'bg-green-100 text-green-800 border-green-200';
+      case 'high': return 'bg-red-100 text-red-800 border-red-200';
+      case 'medium': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'low': return 'bg-green-100 text-green-800 border-green-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'completed': return <CheckCircle2 className="w-4 h-4 text-green-600" />;
-      case 'in-progress': return <Clock className="w-4 h-4 text-blue-600" />;
-      case 'not-started': return <AlertCircle className="w-4 h-4 text-gray-400" />;
+      case 'complete': return <CheckCircle2 className="w-4 h-4 text-green-600" />;
+      case 'in_progress': return <Clock className="w-4 h-4 text-blue-600" />;
+      case 'not_started': return <AlertCircle className="w-4 h-4 text-gray-400" />;
       default: return <AlertCircle className="w-4 h-4 text-gray-400" />;
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading tasks...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`min-h-screen transition-colors duration-300 ${isDarkMode ? 'dark bg-gray-900' : 'bg-gray-50'}`}>
@@ -125,7 +195,7 @@ export default function RoadmapDashboard() {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-6">
               <img 
-                src="/anastellar-logo-pink.png" 
+                src="/anastellar-logo.png" 
                 alt="AnaStellar Brands" 
                 className="h-10 w-auto"
               />
@@ -245,7 +315,7 @@ export default function RoadmapDashboard() {
                           {month.tasks.length} tasks
                         </Badge>
                         <Badge variant="outline">
-                          {month.tasks.filter(t => t.status === 'completed').length} complete
+                          {month.tasks.filter(t => t.status === 'complete').length} complete
                         </Badge>
                       </div>
                     </div>
@@ -259,8 +329,14 @@ export default function RoadmapDashboard() {
                         <TaskCard
                           key={task.id}
                           task={task}
-                          onBookmarkToggle={toggleTaskBookmark}
+                          editingTaskId={editingTaskId}
+                          editDate={editDate}
                           onStatusUpdate={updateTaskStatus}
+                          onPriorityUpdate={updateTaskPriority}
+                          onStartEditingDate={startEditingDate}
+                          onSaveDate={saveTaskDate}
+                          onCancelEditingDate={cancelEditingDate}
+                          onEditDateChange={setEditDate}
                           getUserTypeIcon={getUserTypeIcon}
                           getPriorityColor={getPriorityColor}
                           getStatusIcon={getStatusIcon}
@@ -294,8 +370,14 @@ export default function RoadmapDashboard() {
 
 interface TaskCardProps {
   task: Task;
-  onBookmarkToggle: (taskId: string) => void;
+  editingTaskId: string | null;
+  editDate: string;
   onStatusUpdate: (taskId: string, status: Task['status']) => void;
+  onPriorityUpdate: (taskId: string, priority: Task['priority']) => void;
+  onStartEditingDate: (taskId: string, currentDate: string) => void;
+  onSaveDate: (taskId: string) => void;
+  onCancelEditingDate: () => void;
+  onEditDateChange: (date: string) => void;
   getUserTypeIcon: (userType: string) => JSX.Element;
   getPriorityColor: (priority: string) => string;
   getStatusIcon: (status: string) => JSX.Element;
@@ -303,13 +385,23 @@ interface TaskCardProps {
 
 function TaskCard({ 
   task, 
-  onBookmarkToggle, 
+  editingTaskId,
+  editDate,
   onStatusUpdate, 
+  onPriorityUpdate,
+  onStartEditingDate,
+  onSaveDate,
+  onCancelEditingDate,
+  onEditDateChange,
   getUserTypeIcon, 
   getPriorityColor, 
   getStatusIcon 
 }: TaskCardProps) {
   const [showExamples, setShowExamples] = useState(false);
+  const isEditingDate = editingTaskId === task.id;
+
+  // Parse userTypes from task.userType string
+  const userTypes = task.userType ? task.userType.split(', ') : [];
 
   return (
     <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-white dark:bg-gray-800 hover:shadow-md transition-shadow">
@@ -318,18 +410,6 @@ function TaskCard({
           <div className="flex items-center space-x-2 mb-2">
             {getStatusIcon(task.status)}
             <h4 className="font-medium text-gray-900 dark:text-white">{task.title}</h4>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onBookmarkToggle(task.id)}
-              className="p-1 h-auto"
-            >
-              {task.isBookmarked ? (
-                <BookmarkCheck className="w-4 h-4 text-primary" />
-              ) : (
-                <Bookmark className="w-4 h-4 text-gray-400" />
-              )}
-            </Button>
           </div>
           
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
@@ -337,17 +417,59 @@ function TaskCard({
           </p>
           
           <div className="flex flex-wrap gap-2 mb-3">
-            <Badge className={getPriorityColor(task.priority)}>
-              {task.priority}
+            <Badge 
+              className={`${getPriorityColor(task.priority)} cursor-pointer`}
+              onClick={() => {
+                const priorities: Task['priority'][] = ['high', 'medium', 'low'];
+                const currentIndex = priorities.indexOf(task.priority);
+                const nextPriority = priorities[(currentIndex + 1) % priorities.length];
+                onPriorityUpdate(task.id, nextPriority);
+              }}
+            >
+              {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
             </Badge>
-            <Badge variant="outline" className="flex items-center space-x-1">
-              <Calendar className="w-3 h-3" />
-              <span>{task.estimatedDate}</span>
-            </Badge>
-            <Badge variant="secondary" className="flex items-center space-x-1">
-              {getUserTypeIcon(task.whoUsesIt)}
-              <span>{task.whoUsesIt}</span>
-            </Badge>
+            {isEditingDate ? (
+              <div className="flex items-center space-x-1">
+                <Input
+                  type="date"
+                  value={editDate}
+                  onChange={(e) => onEditDateChange(e.target.value)}
+                  className="h-6 text-sm px-2"
+                />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onSaveDate(task.id)}
+                  className="p-1 h-6 w-6"
+                >
+                  <Save className="w-3 h-3" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onCancelEditingDate}
+                  className="p-1 h-6 w-6"
+                >
+                  <X className="w-3 h-3" />
+                </Button>
+              </div>
+            ) : (
+              <Badge 
+                variant="outline" 
+                className="flex items-center space-x-1 cursor-pointer"
+                onClick={() => onStartEditingDate(task.id, task.estimatedDate)}
+              >
+                <Calendar className="w-3 h-3" />
+                <span>{new Date(task.estimatedDate).toLocaleDateString()}</span>
+                <Edit2 className="w-3 h-3 ml-1" />
+              </Badge>
+            )}
+            {userTypes.map((userType, index) => (
+              <Badge key={index} variant="secondary" className="flex items-center space-x-1">
+                {getUserTypeIcon(userType.trim())}
+                <span>{userType.trim()}</span>
+              </Badge>
+            ))}
           </div>
         </div>
         
@@ -356,9 +478,9 @@ function TaskCard({
           onChange={(e) => onStatusUpdate(task.id, e.target.value as Task['status'])}
           className="ml-4 text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
         >
-          <option value="not-started">Not Started</option>
-          <option value="in-progress">In Progress</option>
-          <option value="completed">Completed</option>
+          <option value="not_started">Not Started</option>
+          <option value="in_progress">In Progress</option>
+          <option value="complete">Complete</option>
         </select>
       </div>
 
@@ -373,28 +495,30 @@ function TaskCard({
           <p className="text-sm text-gray-600 dark:text-gray-400">{task.whoUsesIt}</p>
         </div>
 
-        <Collapsible open={showExamples} onOpenChange={setShowExamples}>
-          <CollapsibleTrigger asChild>
-            <Button variant="ghost" size="sm" className="p-0 h-auto text-primary hover:text-primary/80">
-              <div className="flex items-center space-x-1">
-                {showExamples ? (
-                  <ChevronDown className="w-4 h-4" />
-                ) : (
-                  <ChevronRight className="w-4 h-4" />
-                )}
-                <span>Examples ({task.examples?.length || 0})</span>
-              </div>
-            </Button>
-          </CollapsibleTrigger>
-          
-          <CollapsibleContent className="mt-2">
-            <ul className="list-disc list-inside space-y-1 text-sm text-gray-600 dark:text-gray-400 ml-4">
-              {task.examples?.map((example, index) => (
-                <li key={index}>{example}</li>
-              ))}
-            </ul>
-          </CollapsibleContent>
-        </Collapsible>
+        {task.examples && task.examples.length > 0 && (
+          <Collapsible open={showExamples} onOpenChange={setShowExamples}>
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" size="sm" className="p-0 h-auto text-primary hover:text-primary/80">
+                <div className="flex items-center space-x-1">
+                  {showExamples ? (
+                    <ChevronDown className="w-4 h-4" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4" />
+                  )}
+                  <span>Examples ({task.examples.length})</span>
+                </div>
+              </Button>
+            </CollapsibleTrigger>
+            
+            <CollapsibleContent className="mt-2">
+              <ul className="list-disc list-inside space-y-1 text-sm text-gray-600 dark:text-gray-400 ml-4">
+                {task.examples.map((example, index) => (
+                  <li key={index}>{example}</li>
+                ))}
+              </ul>
+            </CollapsibleContent>
+          </Collapsible>
+        )}
       </div>
     </div>
   );
